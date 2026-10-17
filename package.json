@@ -1,0 +1,23 @@
+{
+  "name": "tailored-resume-ai",
+  "version": "1.0.0",
+  "description": "AI-powered tailored resume and cover letter generator with skills-gap analysis",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node --env-file-if-exists=.env server.js",
+    "dev": "node --watch --env-file-if-exists=.env server.js"
+  },
+  "engines": {
+    "node": ">=20.12"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.134.0",
+    "@google/genai": "^2.30.0",
+    "docx": "^9.11.0",
+    "express": "^5.3.0",
+    "express-rate-limit": "^8.7.1",
+    "pdfkit": "^0.20.2",
+    "zod": "^4.6.7"
+  }
+}

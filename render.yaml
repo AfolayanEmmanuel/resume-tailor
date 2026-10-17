@@ -1,0 +1,23 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+services:
+  - type: web
+    name: resume-tailor
+    runtime: node
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: AI_PROVIDER
+        value: claude # or "gemini"
+      # Render asks for these when you create the service; fill in the one for your provider.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: APP_PASSWORD
+        sync: false
+      - key: GENERATIONS_PER_HOUR
+        value: "5"
