@@ -273,19 +273,22 @@ async function callClaude(input) {
 // ---------- Gemini ----------
 
 const GEMINI_MODEL = process.env.GEMINI_MODEL || "gemini-flash-latest";
+// Used when the main model is overloaded (503) or out of free-tier quota (429). Set to "" to disable.
+const GEMINI_FALLBACK_MODEL = process.env.GEMINI_FALLBACK_MODEL ?? "gemini-flash-lite-latest";
+const RETRY_DELAYS_MS = [2000, 5000];
 // Same schema as Claude's structured output, as plain JSON Schema.
 const { $schema, ...geminiSchema } = z.toJSONSchema(OutputSchema);
 let gemini;
 
-async function callGemini(input) {
-  if (!process.env.GEMINI_API_KEY) {
-    throw new GenerationError("No Gemini API key found. Set GEMINI_API_KEY in your .env file.", 401);
-  }
-  gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-  let response;
-  try {
-    response = await gemini.models.generateContent({
-      model: GEMINI_MODEL,
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isOverloaded = (err) => err instanceof ApiError && (err.status === 503 || err.status === 500);
+
+// Retries the main model on temporary overload, then tries the fallback model once
+// (also on 429, since each model has its own free-tier quota).
+async function generateWithFallback(input) {
+  const request = (model) =>
+    gemini.models.generateContent({
+      model,
       contents: formatCandidate(input),
       config: {
         systemInstruction: SYSTEM_PROMPT,
@@ -294,10 +297,45 @@ async function callGemini(input) {
         maxOutputTokens: 32000,
       },
     });
+
+  let lastErr;
+  for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt++) {
+    try {
+      return await request(GEMINI_MODEL);
+    } catch (err) {
+      lastErr = err;
+      if (!isOverloaded(err) || attempt === RETRY_DELAYS_MS.length) break;
+      console.warn(`Gemini ${GEMINI_MODEL} overloaded (${err.status}), retrying in ${RETRY_DELAYS_MS[attempt] / 1000}s`);
+      await sleep(RETRY_DELAYS_MS[attempt]);
+    }
+  }
+
+  const canFallBack = isOverloaded(lastErr) || (lastErr instanceof ApiError && lastErr.status === 429);
+  if (!GEMINI_FALLBACK_MODEL || GEMINI_FALLBACK_MODEL === GEMINI_MODEL || !canFallBack) throw lastErr;
+  console.warn(`Gemini ${GEMINI_MODEL} unavailable (${lastErr.status}), falling back to ${GEMINI_FALLBACK_MODEL}`);
+  try {
+    return await request(GEMINI_FALLBACK_MODEL);
+  } catch (err) {
+    console.warn(`Gemini fallback ${GEMINI_FALLBACK_MODEL} also failed: ${err.message}`);
+    throw lastErr; // the main model's error is the one worth showing
+  }
+}
+
+async function callGemini(input) {
+  if (!process.env.GEMINI_API_KEY) {
+    throw new GenerationError("No Gemini API key found. Set GEMINI_API_KEY in your .env file.", 401);
+  }
+  gemini ??= new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+  let response;
+  try {
+    response = await generateWithFallback(input);
   } catch (err) {
     if (err instanceof ApiError) {
       if (err.status === 429) {
         throw new GenerationError("Gemini rate limit or free-tier quota reached. Wait a bit and try again.", 429);
+      }
+      if (err.status === 503 || err.status === 500) {
+        throw new GenerationError("Gemini is overloaded right now. Please try again in a few minutes.", 503);
       }
       if (err.status === 400 && /api key/i.test(err.message)) {
         throw new GenerationError("Gemini rejected the API key. Check GEMINI_API_KEY in your .env file.", 401);

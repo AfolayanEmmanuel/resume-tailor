@@ -29,7 +29,7 @@ Set `AI_PROVIDER` in `.env`:
 | Claude (default) | `AI_PROVIDER=claude`, `ANTHROPIC_API_KEY=...` | Paid API credits from https://console.anthropic.com/ |
 | Gemini | `AI_PROVIDER=gemini`, `GEMINI_API_KEY=...` | Free key from https://aistudio.google.com/apikey. The free tier has daily limits, and Google may use free-tier inputs to improve its products. Use a paid key if other people's resumes will go through it. |
 
-Optional: `CLAUDE_MODEL` or `GEMINI_MODEL` change the model (defaults: `claude-opus-5-5`, `gemini-flash-latest`). Restart the server after changing `.env`.
+Optional: `CLAUDE_MODEL` or `GEMINI_MODEL` change the model (defaults: `claude-opus-5-5`, `gemini-flash-latest`). Restart the server after changing `.env`. If Gemini is overloaded (503) the app retries twice, then falls back to `GEMINI_FALLBACK_MODEL` (default `gemini-flash-lite-latest`, which is also used when the main model's free-tier quota runs out; set it to an empty value to turn this off).
 
 Open http://localhost:3000. Click **Load sample** to fill the form with an example profile and job.
 
