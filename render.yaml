@@ -11,7 +11,7 @@ services:
       - key: NODE_VERSION
         value: "22"
       - key: AI_PROVIDER
-        value: claude # or "gemini"
+        value: gemini
       # Render asks for these when you create the service; fill in the one for your provider.
       - key: ANTHROPIC_API_KEY
         sync: false
